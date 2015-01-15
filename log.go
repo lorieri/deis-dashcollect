@@ -9,14 +9,53 @@ import (
 	"strconv"
 	"os"
 	"net"
+	"github.com/coreos/go-etcd/etcd"
 )
 
+var etcdServers []string
+var redisServer string
+
 func main() {
+        getetcdServers := getopt("ETCD_HOSTS", "")
+        if getetcdServers == "" {
+                panic("Please set ETCD_HOSTS environment, comma separated http:// hosts with port")
+        }
+        etcdServers = strings.Split(getetcdServers, ",")
+        client := etcd.NewClient(etcdServers)
+        fmt.Println(client)
+        fmt.Println("Etcd Servers:")
+        fmt.Println(etcdServers)
+        setRedis()
 
 	for {
 		readlog()
 		time.Sleep(time.Second * 1)
 	}
+}
+
+// http://blog.gopheracademy.com/advent-2013/day-06-service-discovery-with-etcd/
+func updateRedis(){
+        client := etcd.NewClient(etcdServers)
+        watchChan := make(chan *etcd.Response)
+        go client.Watch("/deis-dashboard/redis", 0, false, watchChan, nil)
+        resp := <-watchChan
+        redisServer = resp.Node.Value
+        updateRedis()
+}
+
+func setRedis(){
+        redisServer = getopt("REDIS_SERVER", "")
+        fmt.Println("Set redisServer as "+redisServer)
+        if redisServer == "" {
+                client := etcd.NewClient(etcdServers)
+                resp, err := client.Get("/deis-dashboard/redis", false, false)
+                if err != nil {
+                        panic(err)
+                }
+                fmt.Println("Set Redis Server as "+resp.Node.Value)
+                redisServer = resp.Node.Value
+                go updateRedis()
+        }
 }
 
 // copied from github.com/deis
@@ -33,7 +72,6 @@ func readlog() {
 	logspout := getopt("LOGSPOUT","")
 
 	// redis
-	redisServer := getopt("REDIS_SERVER", "127.0.0.1:6379")
         rc := redis.NewClient(&redis.Options{Network: "tcp", Addr: redisServer})
 
         conn, err := net.Dial("tcp", logspout)
