@@ -39,7 +39,7 @@ func updateRedis(){
         watchChan := make(chan *etcd.Response)
         go client.Watch("/deis-dashboard/redis", 0, false, watchChan, nil)
         resp := <-watchChan
-        redisServer = resp.Node.Value
+        redisServer = strings.TrimSpace(resp.Node.Value)
         updateRedis()
 }
 
@@ -53,7 +53,7 @@ func setRedis(){
                         panic(err)
                 }
                 fmt.Println("Set Redis Server as "+resp.Node.Value)
-                redisServer = resp.Node.Value
+                redisServer = strings.TrimSpace(resp.Node.Value)
                 go updateRedis()
         }
 }
