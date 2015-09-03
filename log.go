@@ -85,7 +85,7 @@ func readlog() {
         for scanner.Scan() {
 		line := strings.Split(scanner.Text()," - ")
 
-		if len(line) > 14 {
+		if len(line) > 13 {
 			// format  := `$deis_time $deis_unit: [$level] - [$time_local] - $remote_addr - $remote_user - $status - "$request" - $bytes_sent - "$http_referer" - "$http_user_agent" - "$server_name" - $upstream_addr - $http_host - $upstream_response_time - $request_time`
 
 			// deis			   0       deis-router|[INFO]
