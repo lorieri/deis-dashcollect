@@ -141,7 +141,7 @@ func readlog() {
 			rc.IncrBy("current_k_total_bytes", int64(bytes_sent_float))
 			rc.IncrBy("current_k_total_requests", 1)
 			rc.Set("current_s_last_log_time", time_local)
-
+			rc.ZIncrBy("current_z_top_apps_upstream_time", upstream_response_time_float, server_name)
 
 
 			// apps
@@ -161,44 +161,44 @@ func readlog() {
 			rc.IncrBy("current_k_total_app_bytes_sent_"+server_name, int64(bytes_sent_float))
 			rc.IncrBy("current_k_total_app_requests_"+server_name, 1)
 			rc.ZIncrBy("current_z_top_app_domains_"+server_name, 1, http_host)
-			rc.IncrBy("current_k_top_app_upstream_response_time_"+server_name, int64(upstream_response_time_float*1000))
-			rc.IncrBy("current_k_top_app_request_time_"+server_name, int64(request_time_float*1000))
+			rc.IncrBy("current_k_total_app_upstream_response_time_"+server_name, int64(upstream_response_time_float*1000))
+			rc.IncrBy("current_k_total_app_request_time_"+server_name, int64(request_time_float*1000))
 
 			upstream_response_time_range := ""
 			if upstream_response_time_float < 0.100 {
-				upstream_response_time_range = "100"
+				upstream_response_time_range = "<100"
 			}else if upstream_response_time_float < 0.250{
-				upstream_response_time_range = "250"
+				upstream_response_time_range = "<250"
 			}else if upstream_response_time_float < 0.500{
-                                upstream_response_time_range = "500"
+                                upstream_response_time_range = "<500"
 			}else if upstream_response_time_float < 1000{
-                                upstream_response_time_range = "1000"
+                                upstream_response_time_range = "<1000"
 			}else if upstream_response_time_float < 2000{
-                                upstream_response_time_range = "2000"
+                                upstream_response_time_range = "<2000"
 			}else if upstream_response_time_float < 5000{
-                                upstream_response_time_range = "5000"
+                                upstream_response_time_range = "<5000"
 			}else if upstream_response_time_float > 5000{
-                                upstream_response_time_range = "+5000"
+                                upstream_response_time_range = ">5000"
 			}
-			rc.ZIncrBy("current_z_top_app_upstream_response_time_range"+server_name, 1, upstream_response_time_range)
+			rc.ZIncrBy("current_z_top_app_upstream_response_time_range_"+server_name, 1, upstream_response_time_range)
 
 			request_time_range := ""
 			if request_time_float < 0.100 {
-				request_time_range = "100"
+				request_time_range = "<100"
 			}else if request_time_float < 0.250{
-				request_time_range = "250"
+				request_time_range = "<250"
 			}else if request_time_float < 0.500{
-                                request_time_range = "500"
+                                request_time_range = "<500"
 			}else if request_time_float < 1000{
-                                request_time_range = "1000"
+                                request_time_range = "<1000"
 			}else if request_time_float < 2000{
-                                request_time_range = "2000"
+                                request_time_range = "<2000"
 			}else if request_time_float < 5000{
-                                request_time_range = "5000"
+                                request_time_range = "<5000"
 			}else if request_time_float > 5000{
-                                request_time_range = "+5000"
+                                request_time_range = ">5000"
 			}
-			rc.ZIncrBy("current_z_top_app_request_time_range"+server_name, 1, request_time_range)
+			rc.ZIncrBy("current_z_top_app_request_time_range_"+server_name, 1, request_time_range)
 
                 }else{
                         if strings.Contains(scanner.Text(), " [error] ") {
