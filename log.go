@@ -70,6 +70,7 @@ func getopt(name, dfault string) string {
 func readlog() {
 
 	logspout := getopt("LOGSPOUT","")
+	fmt.Println("Set LogSpout as "+redisServer)
 
 	// redis
         rc := redis.NewClient(&redis.Options{Network: "tcp", Addr: redisServer})
@@ -84,20 +85,23 @@ func readlog() {
         for scanner.Scan() {
 		line := strings.Split(scanner.Text()," - ")
 
-		if len(line) == 11 {
-			// format  := `$deis_time $deis_unit: [$level] - [$time_local] - $remote_addr - $remote_user - $status - "$request" - $bytes_sent - "$http_referer" - "$http_user_agent" - "$server_name" - $upstream_addr`
+		if len(line) > 14 {
+			// format  := `$deis_time $deis_unit: [$level] - [$time_local] - $remote_addr - $remote_user - $status - "$request" - $bytes_sent - "$http_referer" - "$http_user_agent" - "$server_name" - $upstream_addr - $http_host - $upstream_response_time - $request_time`
 
-			// deis			0       deis-router|[INFO]
-			// time_local		1  - [15/Jan/2015:03:23:22 +0000]
-			// remote_addr		2  - 10.134.66.67
-			// remote_user		3  - -
-			// status		4  - 200
-			// request		5  - "GET / HTTP/1.1"
-			// bytes_sent		6  - 872
-			// http_referer		7  - "-"
-			// http_user_agent	8  - "curl/7.30.0"
-			// server_name		9  - ""
-			// upstream_addr	10 - -
+			// deis			   0       deis-router|[INFO]
+			// time_local		   1  - [15/Jan/2015:03:23:22 +0000]
+			// remote_addr		   2  - 10.134.66.67
+			// remote_user		   3  - -
+			// status		   4  - 200
+			// request		   5  - "GET / HTTP/1.1"
+			// bytes_sent		   6  - 872
+			// http_referer		   7  - "-"
+			// http_user_agent	   8  - "curl/7.30.0"
+			// server_name		   9  - ""
+			// upstream_addr	  10 - -
+			// http_host		  11 - myapp.mypaas.com
+			// upstream_response_time 12 - 0.003
+			// request_time		  13 - 0.003
 
 
 			upstream_addr := line[10]
@@ -105,7 +109,6 @@ func readlog() {
 			time_local := line[1]
 			status := line[4]
 			bytes_sent_str := line[6]
-			bytes_sent, _ := strconv.ParseInt(bytes_sent_str, 0, 64)
 			bytes_sent_float,_ := strconv.ParseFloat(bytes_sent_str,64)
 			// fmt.Printf("%+v\n",bytes_sent)
 			http_referer := line[7]
@@ -118,6 +121,11 @@ func readlog() {
 			}else{
 				server_name = "UNKNOWN"
 			}
+			http_host := line[11]
+			upstream_response_time_str := line[12]
+			upstream_response_time_float,_ := strconv.ParseFloat(upstream_response_time_str,64)
+			request_time_str := line[13]
+			request_time_float,_ := strconv.ParseFloat(request_time_str,64)
 			// ZIncrBy(key string, increment int, member string)
 
 			// global
@@ -130,7 +138,7 @@ func readlog() {
 			rc.ZIncrBy("current_z_top_remote_addr_status", 1, status+" "+remote_addr)
 			rc.ZIncrBy("current_z_top_remote_addr_bytes_sent", bytes_sent_float, remote_addr)
 			rc.ZIncrBy("current_z_top_apps_bytes_sent", bytes_sent_float, server_name)
-			rc.IncrBy("current_k_total_bytes", bytes_sent)
+			rc.IncrBy("current_k_total_bytes", int64(bytes_sent_float))
 			rc.IncrBy("current_k_total_requests", 1)
 			rc.Set("current_s_last_log_time", time_local)
 
@@ -150,8 +158,48 @@ func readlog() {
 			rc.ZIncrBy("current_z_top_remote_addr_status_"+server_name, 1, status+" "+remote_addr)
 			rc.ZIncrBy("current_z_top_remote_addr_bytes_sent_"+server_name, bytes_sent_float, remote_addr)
 			rc.ZIncrBy("current_z_top_app_referer_"+server_name, 1, http_referer)
-			rc.IncrBy("current_k_total_app_bytes_sent_"+server_name, bytes_sent)
+			rc.IncrBy("current_k_total_app_bytes_sent_"+server_name, int64(bytes_sent_float))
 			rc.IncrBy("current_k_total_app_requests_"+server_name, 1)
+			rc.ZIncrBy("current_z_top_app_domains_"+server_name, 1, http_host)
+			rc.IncrBy("current_k_top_app_upstream_response_time_"+server_name, int64(upstream_response_time_float*1000))
+			rc.IncrBy("current_k_top_app_request_time_"+server_name, int64(request_time_float*1000))
+
+			upstream_response_time_range := ""
+			if upstream_response_time_float < 0.100 {
+				upstream_response_time_range = "100"
+			}else if upstream_response_time_float < 0.250{
+				upstream_response_time_range = "250"
+			}else if upstream_response_time_float < 0.500{
+                                upstream_response_time_range = "500"
+			}else if upstream_response_time_float < 1000{
+                                upstream_response_time_range = "1000"
+			}else if upstream_response_time_float < 2000{
+                                upstream_response_time_range = "2000"
+			}else if upstream_response_time_float < 5000{
+                                upstream_response_time_range = "5000"
+			}else if upstream_response_time_float > 5000{
+                                upstream_response_time_range = "+5000"
+			}
+			rc.ZIncrBy("current_z_top_app_upstream_response_time_range"+server_name, 1, upstream_response_time_range)
+
+			request_time_range := ""
+			if request_time_float < 0.100 {
+				request_time_range = "100"
+			}else if request_time_float < 0.250{
+				request_time_range = "250"
+			}else if request_time_float < 0.500{
+                                request_time_range = "500"
+			}else if request_time_float < 1000{
+                                request_time_range = "1000"
+			}else if request_time_float < 2000{
+                                request_time_range = "2000"
+			}else if request_time_float < 5000{
+                                request_time_range = "5000"
+			}else if request_time_float > 5000{
+                                request_time_range = "+5000"
+			}
+			rc.ZIncrBy("current_z_top_app_request_time_range"+server_name, 1, request_time_range)
+
                 }else{
                         if strings.Contains(scanner.Text(), " [error] ") {
                                 continue
