@@ -207,4 +207,5 @@ func readlog() {
                         fmt.Println(len(line)," Unable to parse this line: ",scanner.Text())
                 }
 	}
+	rc.Close()
 }
